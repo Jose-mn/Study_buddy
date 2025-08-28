@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 import mysql.connector
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, template_folder="../frontend/templates")
 
@@ -14,11 +15,48 @@ cursor = db.cursor()
 
 # Home route
 @app.route('/')
-def home ():
-    return render_template('index.html')
-
 def home():
-    return "Welcome to AI Study Buddy API!"
+    return render_template("index.html")
+
+# User signup route
+@app.route('/signup', methods=['POST'])
+def signup():
+    data = request.get_json()
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+
+    if not username or not email or not password:
+        return jsonify({"error": "All fields are required!"}), 400
+
+    hashed_password = generate_password_hash(password, method='sha256')
+
+    try:
+        sql = "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)"
+        cursor.execute(sql, (username, email, hashed_password))
+        db.commit()
+        return jsonify({"message": "User registered successfully!"})
+    except mysql.connector.IntegrityError:
+        return jsonify({"error": "Username or email already exists!"}), 400
+
+# User login route
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({"error": "Username and password are required!"}), 400
+
+    sql = "SELECT * FROM users WHERE username = %s"
+    cursor.execute(sql, (username,))
+    user = cursor.fetchone()
+
+    if user and check_password_hash(user[3], password):  # user[3] is password field
+        return jsonify({"message": "Login successful!"})
+    else:
+        return jsonify({"error": "Invalid username or password!"}), 401
 
 # Add a flashcard
 @app.route('/add_flashcard', methods=['POST'])
