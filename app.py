@@ -1,7 +1,7 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import mysql.connector
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="../frontend/templates")
 
 # Connect to MySQL
 db = mysql.connector.connect(
@@ -14,6 +14,9 @@ cursor = db.cursor()
 
 # Home route
 @app.route('/')
+def home ():
+    return render_template('index.html')
+
 def home():
     return "Welcome to AI Study Buddy API!"
 
