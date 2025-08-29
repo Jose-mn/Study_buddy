@@ -2,7 +2,8 @@ from flask import Flask, request, jsonify, render_template, session
 import mysql.connector
 from werkzeug.security import generate_password_hash, check_password_hash
 
-app = Flask(__name__, template_folder="../frontend/templates")
+app = Flask(__name__, template_folder="../frontend/templates", static_folder="../frontend/static")
+
 app.secret_key = 'your_secret_key_here'  # Needed for sessions
 
 # Connect to MySQL
@@ -93,6 +94,30 @@ def get_flashcards():
 
     result = [{"id": card[0], "question": card[1], "answer": card[2]} for card in flashcards]
     return jsonify(result)
+
+# NEW: Generate flashcards from notes (for frontend)
+@app.route('/generate_flashcards', methods=['POST'])
+def generate_flashcards():
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json()
+    notes = data.get("notes", "")
+
+    # TODO: Replace this with Hugging Face API later
+    generated_cards = [
+        {"question": "What is SDG 4?", "answer": "Quality Education"},
+        {"question": "What tool helps with memorization?", "answer": "Flashcards"},
+        {"question": "Which framework are we using for backend?", "answer": "Flask"}
+    ]
+
+    # Save generated cards into DB
+    for card in generated_cards:
+        sql = "INSERT INTO flashcards (question, answer, user_id) VALUES (%s, %s, %s)"
+        cursor.execute(sql, (card["question"], card["answer"], session['user_id']))
+    db.commit()
+
+    return jsonify({"flashcards": generated_cards})
 
 if __name__ == '__main__':
     app.run(debug=True)
