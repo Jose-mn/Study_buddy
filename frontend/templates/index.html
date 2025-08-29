@@ -2,21 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AI Study Buddy - Flashcards</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <title>AI Study Buddy</title>
+  <!-- Link to CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="container">
-    <h1>AI Study Buddy</h1>
-    <form id="flashcardForm">
-      <input type="text" id="question" placeholder="Enter question" required>
-      <input type="text" id="answer" placeholder="Enter answer" required>
-      <button type="submit">Add Flashcard</button>
-    </form>
+  <head>
+  <title>AI Study Buddy</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  
 
-    <h2>Flashcards</h2>
-    <ul id="flashcardsList"></ul>
-  </div>
-  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <h1>AI Study Buddy – Flashcard Generator</h1>
+
+  <!-- Text area for user notes -->
+  <textarea id="notesInput" placeholder="Paste your study notes here..."></textarea>
+  
+  <!-- Button to send notes to backend -->
+  <button id="generateBtn">Generate Flashcards</button>
+
+  <!-- Flashcards will appear here -->
+  <div id="flashcards"></div>
+
+  <!-- Link to JavaScript -->
+  <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
 </html>
