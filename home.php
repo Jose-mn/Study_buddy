@@ -1,7 +1,7 @@
 <?php
 session_start();
 if (!isset($_SESSION['username'])) {
-    header("Location: login.php"); // redirect back if not logged in
+    header("Location: login.html"); // redirect back if not logged in
     exit();
 }
 ?>

@@ -16,7 +16,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         if (password_verify($password, $user['password'])) {
             $_SESSION['username'] = $username;
-            header("Location: home.php"); // ✅ redirect to home page
+            header("Location: index.html"); // ✅ redirect to home page
             exit();
         } else {
             echo "Wrong password!";
