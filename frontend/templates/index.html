@@ -1,31 +1,131 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>AI Study Buddy</title>
-  <!-- Link to CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Buddy - Flashcard Generator</title>
+    <link rel="stylesheet" href="../static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-  <head>
-  <title>AI Study Buddy</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-  
+    <div class="container">
+        <header>
+            <h1>AI Study Buddy</h1>
+            <div class="subtitle">Multi-Subject Flashcard Generator</div>
+            <p class="tagline">Transform your study notes into interactive flashcards using AI. Perfect for students who want to study smarter, not harder!</p>
+        </header>
+        
+        <nav class="subject-nav">
+            <ul>
+                <li><a href="#" class="active" data-subject="all">All Subjects</a></li>
+                <li><a href="#" data-subject="math">Mathematics</a></li>
+                <li><a href="#" data-subject="english">English</a></li>
+                <li><a href="#" data-subject="spanish">Spanish</a></li>
+                <li><a href="#" data-subject="german">German</a></li>
+                <li><a href="#" data-subject="science">Science</a></li>
+                <li><a href="#" data-subject="history">History</a></li>
+            </ul>
+        </nav>
+        
+        <div class="main-content">
+            <div class="input-section">
+                <h2>Enter Your Study Notes</h2>
+                <div class="subject-selector">
+                    <label for="subject">Select Subject:</label>
+                    <select id="subject">
+                        <option value="math">Mathematics</option>
+                        <option value="english">English</option>
+                        <option value="spanish">Spanish</option>
+                        <option value="german">German</option>
+                        <option value="science">Science</option>
+                        <option value="history">History</option>
+                    </select>
+                </div>
+                <textarea id="notes-input" placeholder="Paste your study notes here... (e.g., The water cycle consists of evaporation, condensation, precipitation, and collection. Evaporation occurs when water turns into vapor.)"></textarea>
+                <div class="buttons">
+                    <button class="btn-primary" id="generate-btn">
+                        <i class="fas fa-robot"></i> Generate Flashcards
+                    </button>
+                    <button class="btn-secondary" id="clear-btn">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                    <button class="btn-secondary" id="save-btn">
+                        <i class="fas fa-save"></i> Save Flashcards
+                    </button>
+                </div>
+            </div>
+            
+            <div class="output-section">
+                <h2>Your Flashcards <span id="subject-indicator"></span></h2>
+                <div class="flashcards-container" id="flashcards">
+                    <!-- Flashcards will be generated here -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <i class="fas fa-brain"></i>
+                <h3>AI-Powered</h3>
+                <p>Uses Hugging Face AI to generate relevant questions from your notes</p>
+            </div>
+            <div class="feature">
+                <i class="fas fa-database"></i>
+                <h3>Save & Organize</h3>
+                <p>Store your flashcards in MySQL for later review</p>
+            </div>
+            <div class="feature">
+                <i class="fas fa-graduation-cap"></i>
+                <h3>SDG Alignment</h3>
+                <p>Supports UN Sustainable Development Goal #4: Quality Education</p>
+            </div>
+        </div>
+        
+        <section class="pricing">
+            <h2>Pricing Plans</h2>
+            <div class="pricing-cards">
+                <div class="pricing-card">
+                    <h3>Free Plan</h3>
+                    <div class="price">$0<span>/month</span></div>
+                    <ul>
+                        <li><i class="fas fa-check"></i> 20 flashcards per month</li>
+                        <li><i class="fas fa-check"></i> Basic subjects</li>
+                        <li><i class="fas fa-times"></i> No saving functionality</li>
+                        <li><i class="fas fa-times"></i> Limited AI features</li>
+                    </ul>
+                    <button class="btn-secondary">Current Plan</button>
+                </div>
+                <div class="pricing-card featured">
+                    <div class="popular-badge">MOST POPULAR</div>
+                    <h3>Student Plan</h3>
+                    <div class="price">$4.99<span>/month</span></div>
+                    <ul>
+                        <li><i class="fas fa-check"></i> Unlimited flashcards</li>
+                        <li><i class="fas fa-check"></i> All subjects</li>
+                        <li><i class="fas fa-check"></i> Save and organize</li>
+                        <li><i class="fas fa-check"></i> Full AI features</li>
+                    </ul>
+                    <button class="btn-primary">Upgrade Now</button>
+                </div>
+                <div class="pricing-card">
+                    <h3>Educator Plan</h3>
+                    <div class="price">$9.99<span>/month</span></div>
+                    <ul>
+                        <li><i class="fas fa-check"></i> Everything in Student</li>
+                        <li><i class="fas fa-check"></i> Create class groups</li>
+                        <li><i class="fas fa-check"></i> Share flashcards</li>
+                        <li><i class="fas fa-check"></i> Progress tracking</li>
+                    </ul>
+                    <button class="btn-secondary">Choose Plan</button>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <footer>
+        <p>AI Study Buddy - Created for the SDG Quality Education Hackathon | © 2023</p>
+    </footer>
 
-  <h1>AI Study Buddy – Flashcard Generator</h1>
-
-  <!-- Text area for user notes -->
-  <textarea id="notesInput" placeholder="Paste your study notes here..."></textarea>
-  
-  <!-- Button to send notes to backend -->
-  <button id="generateBtn">Generate Flashcards</button>
-
-  <!-- Flashcards will appear here -->
-  <div id="flashcards"></div>
-
-  <!-- Link to JavaScript -->
-  <script src="{{ url_for('static', filename='main.js') }}"></script>
+    <script src="../static/main.js"></script>
 </body>
 </html>
