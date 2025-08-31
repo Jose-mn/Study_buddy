@@ -640,6 +640,55 @@
         if (debugMode) {
             updateDebugInfo();
         }
+
+        document.getElementById("signupForm").addEventListener("submit", async function (e) {
+            e.preventDefault(); // stop reload
+
+    const username = document.getElementById("signupUsername").value;
+    const email = document.getElementById("signupEmail").value;
+    const password = document.getElementById("signupPassword").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+
+    const debugUrl = document.getElementById("debug-url");
+    const debugStatus = document.getElementById("debug-status");
+    const debugError = document.getElementById("debug-error");
+    const debugResponse = document.getElementById("debug-response");
+
+    const apiUrl = "http://127.0.0.1:5000/signup"; 
+    debugUrl.textContent = apiUrl;
+
+    if (password !== confirmPassword) {
+        alert("Passwords do not match!");
+        return;
+    }
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, email, password }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert("✅ Signup successful! You can now log in.");
+            debugStatus.textContent = "Success";
+            debugResponse.textContent = JSON.stringify(data);
+        } else {
+            alert("❌ Error: " + data.error);
+            debugStatus.textContent = "Failed";
+            debugError.textContent = data.error || "Unknown error";
+            debugResponse.textContent = JSON.stringify(data);
+        }
+    } catch (err) {
+        alert("⚠️ Could not connect to server.");
+        debugStatus.textContent = "Connection error";
+        debugError.textContent = err.message;
+    }
+});
+</script>
+
     </script>
 </body>
 </html>
