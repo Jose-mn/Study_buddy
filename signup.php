@@ -11,7 +11,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($stmt->execute()) {
         $_SESSION['username'] = $username;
-        header("Location: index.html"); // ✅ redirect to home page
+        header("Location: home.php"); // ✅ redirect to home page
         exit();
     } else {
         echo "Signup failed. Try another username.";
