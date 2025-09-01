@@ -62,8 +62,38 @@ const sampleQuestions = {
     ]
 };
 
-// Configuration
-const API_BASE_URL = 'http://127.0.0.1:5000';
+// Configuration - Try different ports if 5000 doesn't work
+const API_BASE_URLS = [
+    'http://127.0.0.1:5000',
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+    'http://localhost:5000'
+];
+
+let API_BASE_URL = API_BASE_URLS[0]; // Default
+
+// Test backend connection
+async function testBackendConnection() {
+    for (const url of API_BASE_URLS) {
+        try {
+            const response = await fetch(`${url}/health`, {
+                method: 'GET',
+                timeout: 3000
+            });
+            if (response.ok) {
+                API_BASE_URL = url;
+                console.log(`Backend connected at: ${url}`);
+                showNotification(`Connected to backend at ${url}`, 'success');
+                return true;
+            }
+        } catch (error) {
+            console.log(`Failed to connect to ${url}:`, error.message);
+        }
+    }
+    
+    showNotification('Unable to connect to backend. Running in offline mode.', 'error');
+    return false;
+}
 
 // DOM elements
 const notesInput = document.getElementById('notes-input');
@@ -80,6 +110,7 @@ let currentSubjectFilter = 'all';
 let currentFlashcards = [];
 let authToken = localStorage.getItem('auth_token');
 let currentUser = null;
+let backendConnected = false;
 
 // Authentication utilities
 function setAuthToken(token) {
@@ -95,104 +126,104 @@ function getAuthHeaders() {
     return authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
 }
 
-// API functions
-async function saveFlashcardsToAPI(flashcardData) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/save_flashcards`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeaders()
-            },
-            body: JSON.stringify(flashcardData)
-        });
+// Enhanced API functions with better error handling
+async function makeAPICall(endpoint, options = {}) {
+    if (!backendConnected) {
+        throw new Error('Backend not connected. Please check if the Flask server is running.');
+    }
 
-        const data = await response.json();
+    const defaultOptions = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+        }
+    };
+
+    const finalOptions = { ...defaultOptions, ...options };
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, finalOptions);
         
         if (!response.ok) {
-            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+            let errorMessage;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+            } catch {
+                errorMessage = `HTTP error! status: ${response.status}`;
+            }
+            throw new Error(errorMessage);
         }
         
-        return data;
+        return await response.json();
     } catch (error) {
-        console.error('Save flashcards API error:', error);
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            throw new Error('Cannot connect to backend. Make sure the Flask server is running on port 5000.');
+        }
         throw error;
     }
+}
+
+async function saveFlashcardsToAPI(flashcardData) {
+    return await makeAPICall('/save_flashcards', {
+        method: 'POST',
+        body: JSON.stringify(flashcardData)
+    });
 }
 
 async function loadUserFlashcards(subject = null, limit = 50, offset = 0) {
-    try {
-        const params = new URLSearchParams();
-        if (subject && subject !== 'all') params.append('subject', subject);
-        params.append('limit', limit.toString());
-        params.append('offset', offset.toString());
+    const params = new URLSearchParams();
+    if (subject && subject !== 'all') params.append('subject', subject);
+    params.append('limit', limit.toString());
+    params.append('offset', offset.toString());
 
-        const response = await fetch(`${API_BASE_URL}/my_flashcards?${params}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeaders()
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to load flashcards');
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error('Load flashcards error:', error);
-        throw error;
-    }
+    return await makeAPICall(`/my_flashcards?${params}`);
 }
 
 async function deleteFlashcard(flashcardId) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/flashcards/${flashcardId}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeaders()
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to delete flashcard');
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error('Delete flashcard error:', error);
-        throw error;
-    }
+    return await makeAPICall(`/flashcards/${flashcardId}`, {
+        method: 'DELETE'
+    });
 }
 
 async function markAsReviewed(flashcardId) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/flashcards/${flashcardId}/review`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeaders()
-            }
-        });
+    return await makeAPICall(`/flashcards/${flashcardId}/review`, {
+        method: 'POST'
+    });
+}
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to mark as reviewed');
-        }
+// Login and Signup functions
+async function signup(username, email, password) {
+    return await makeAPICall('/signup', {
+        method: 'POST',
+        body: JSON.stringify({ username, email, password })
+    });
+}
 
-        return await response.json();
-    } catch (error) {
-        console.error('Mark reviewed error:', error);
-        throw error;
+async function login(usernameOrEmail, password) {
+    const result = await makeAPICall('/login', {
+        method: 'POST',
+        body: JSON.stringify({ 
+            username: usernameOrEmail, 
+            email: usernameOrEmail, 
+            password 
+        })
+    });
+    
+    if (result.access_token) {
+        setAuthToken(result.access_token);
+        currentUser = result.user;
     }
+    
+    return result;
 }
 
 // Initialize the page
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    // Test backend connection first
+    backendConnected = await testBackendConnection();
+    
     // Check if user is authenticated
     checkAuthenticationStatus();
 
@@ -204,8 +235,11 @@ document.addEventListener('DOMContentLoaded', function () {
     clearBtn.addEventListener('click', clearNotes);
     saveBtn.addEventListener('click', saveFlashcards);
 
-    // Add load saved flashcards button
-    addLoadFlashcardsButton();
+    // Add authentication buttons if backend is connected
+    if (backendConnected) {
+        addAuthButtons();
+        addLoadFlashcardsButton();
+    }
 
     // Set up subject navigation
     subjectNavLinks.forEach(link => {
@@ -224,26 +258,116 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-function checkAuthenticationStatus() {
-    // Add authentication status to UI
+function addAuthButtons() {
     const header = document.querySelector('header');
     const authDiv = document.createElement('div');
-    authDiv.className = 'auth-status';
+    authDiv.className = 'auth-section';
+    authDiv.id = 'auth-section';
     
-    if (authToken) {
+    updateAuthSection();
+    header.appendChild(authDiv);
+}
+
+function updateAuthSection() {
+    const authDiv = document.getElementById('auth-section');
+    if (!authDiv) return;
+
+    if (authToken && currentUser) {
         authDiv.innerHTML = `
-            <span class="user-status">✅ Authenticated</span>
-            <button class="btn-secondary" onclick="loadMyFlashcards()">Load My Flashcards</button>
-            <button class="btn-secondary" onclick="logout()">Logout</button>
+            <div class="auth-status">
+                <span class="user-status">Welcome, ${currentUser.username}!</span>
+                <button class="btn-secondary" onclick="loadMyFlashcards()">My Flashcards</button>
+                <button class="btn-secondary" onclick="logout()">Logout</button>
+            </div>
         `;
     } else {
         authDiv.innerHTML = `
-            <span class="user-status">👤 Guest Mode</span>
-            <small>Sign up to save your flashcards permanently!</small>
+            <div class="auth-forms">
+                <div class="auth-toggle">
+                    <button id="show-login" class="btn-secondary active">Login</button>
+                    <button id="show-signup" class="btn-secondary">Sign Up</button>
+                </div>
+                <div id="login-form" class="auth-form">
+                    <input type="text" id="login-username" placeholder="Username or Email">
+                    <input type="password" id="login-password" placeholder="Password">
+                    <button onclick="handleLogin()" class="btn-primary">Login</button>
+                </div>
+                <div id="signup-form" class="auth-form" style="display: none;">
+                    <input type="text" id="signup-username" placeholder="Username">
+                    <input type="email" id="signup-email" placeholder="Email">
+                    <input type="password" id="signup-password" placeholder="Password (min 6 chars)">
+                    <button onclick="handleSignup()" class="btn-primary">Sign Up</button>
+                </div>
+            </div>
         `;
+
+        // Add toggle functionality
+        document.getElementById('show-login').addEventListener('click', () => {
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('signup-form').style.display = 'none';
+            document.getElementById('show-login').classList.add('active');
+            document.getElementById('show-signup').classList.remove('active');
+        });
+
+        document.getElementById('show-signup').addEventListener('click', () => {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('signup-form').style.display = 'block';
+            document.getElementById('show-login').classList.remove('active');
+            document.getElementById('show-signup').classList.add('active');
+        });
     }
-    
-    header.appendChild(authDiv);
+}
+
+async function handleLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    if (!username || !password) {
+        showNotification('Please enter both username/email and password', 'error');
+        return;
+    }
+
+    try {
+        const result = await login(username, password);
+        showNotification('Login successful!', 'success');
+        updateAuthSection();
+    } catch (error) {
+        showNotification(`Login failed: ${error.message}`, 'error');
+    }
+}
+
+async function handleSignup() {
+    const username = document.getElementById('signup-username').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
+    const password = document.getElementById('signup-password').value;
+
+    if (!username || !email || !password) {
+        showNotification('Please fill in all fields', 'error');
+        return;
+    }
+
+    if (password.length < 6) {
+        showNotification('Password must be at least 6 characters long', 'error');
+        return;
+    }
+
+    try {
+        await signup(username, email, password);
+        showNotification('Account created successfully! You can now login.', 'success');
+        
+        // Switch to login form
+        document.getElementById('show-login').click();
+    } catch (error) {
+        showNotification(`Signup failed: ${error.message}`, 'error');
+    }
+}
+
+function checkAuthenticationStatus() {
+    // Try to get user info from token if available
+    if (authToken) {
+        // In a real app, you might want to verify the token with the backend
+        console.log('User has auth token');
+    }
 }
 
 function addLoadFlashcardsButton() {
@@ -412,6 +536,11 @@ async function saveFlashcards() {
         return;
     }
 
+    if (!backendConnected) {
+        showNotification('Cannot save: Backend not connected. Please check if Flask server is running.', 'error');
+        return;
+    }
+
     // Show saving state
     const originalContent = saveBtn.innerHTML;
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
@@ -426,7 +555,7 @@ async function saveFlashcards() {
 
         const result = await saveFlashcardsToAPI(flashcardData);
         
-        showNotification(`✅ Successfully saved ${result.count} flashcards!`, 'success');
+        showNotification(`Successfully saved ${result.count} flashcards!`, 'success');
         
         // If user is authenticated, offer to load their flashcards
         if (authToken) {
@@ -440,9 +569,11 @@ async function saveFlashcards() {
     } catch (error) {
         console.error('Save flashcards error:', error);
         if (error.message.includes('401')) {
-            showNotification('❌ Please log in to save flashcards permanently', 'error');
+            showNotification('Please log in to save flashcards permanently', 'error');
+        } else if (error.message.includes('connect')) {
+            showNotification('Cannot connect to server. Check if Flask backend is running.', 'error');
         } else {
-            showNotification(`❌ Error: ${error.message}`, 'error');
+            showNotification(`Error: ${error.message}`, 'error');
         }
     } finally {
         // Restore button state
@@ -455,6 +586,11 @@ async function saveFlashcards() {
 async function loadMyFlashcards() {
     if (!authToken) {
         showNotification('Please log in to load saved flashcards', 'error');
+        return;
+    }
+
+    if (!backendConnected) {
+        showNotification('Cannot load: Backend not connected', 'error');
         return;
     }
 
@@ -613,6 +749,8 @@ function showNotification(message, type = 'info') {
         font-weight: 500;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         animation: slideInRight 0.3s ease-out;
+        max-width: 400px;
+        word-wrap: break-word;
     `;
     
     document.body.appendChild(notification);
@@ -628,10 +766,14 @@ function showNotification(message, type = 'info') {
 function logout() {
     setAuthToken(null);
     currentUser = null;
-    location.reload();
+    updateAuthSection();
+    showNotification('Logged out successfully', 'info');
+    
+    // Clear loaded flashcards and show samples
+    generateSampleFlashcards();
 }
 
-// Add CSS animations
+// Add CSS animations and styles
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideInRight {
@@ -714,17 +856,75 @@ style.textContent = `
         transform: scale(1.1);
     }
     
-    .auth-status {
-        margin-top: 10px;
-        padding: 10px;
+    .auth-section {
+        margin-top: 15px;
+        padding: 15px;
         background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        backdrop-filter: blur(10px);
+    }
+    
+    .auth-forms {
+        max-width: 400px;
+        margin: 0 auto;
+    }
+    
+    .auth-toggle {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+        justify-content: center;
+    }
+    
+    .auth-toggle button {
+        padding: 8px 16px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        background: transparent;
+        color: white;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .auth-toggle button.active {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .auth-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .auth-form input {
+        padding: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
         border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 14px;
+    }
+    
+    .auth-form input::placeholder {
+        color: rgba(255, 255, 255, 0.7);
+    }
+    
+    .auth-form input:focus {
+        outline: none;
+        border-color: rgba(255, 255, 255, 0.6);
+        background: rgba(255, 255, 255, 0.15);
+    }
+    
+    .auth-status {
         text-align: center;
+        color: white;
     }
     
     .user-status {
         font-weight: 500;
-        margin-right: 10px;
+        margin-bottom: 10px;
+        display: block;
     }
     
     .loading {
@@ -746,6 +946,23 @@ style.textContent = `
         padding: 40px;
         color: #dc3545;
         font-weight: 500;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .auth-forms {
+            max-width: 100%;
+        }
+        
+        .auth-toggle {
+            flex-direction: column;
+        }
+        
+        .notification {
+            right: 10px !important;
+            left: 10px !important;
+            max-width: none !important;
+        }
     }
 `;
 document.head.appendChild(style);
