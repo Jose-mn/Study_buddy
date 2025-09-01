@@ -328,19 +328,12 @@
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            username: username,
-            email: email,
-            password: password
-          })
+          body: JSON.stringify({ username, email, password })
         });
-
         const data = await response.json();
-
         if (!response.ok) {
           throw new Error(data.error || 'Signup failed');
         }
-
         return data;
       } catch (error) {
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
@@ -353,7 +346,6 @@
     // Handle form submission
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      
       const username = usernameInput.value.trim();
       const email = emailInput.value.trim();
       const password = passwordInput.value;
@@ -364,12 +356,10 @@
         showMessage('Please fix the errors above');
         return;
       }
-
       if (password !== confirmPassword) {
         showMessage('Passwords do not match');
         return;
       }
-
       if (password.length < 6) {
         showMessage('Password must be at least 6 characters long');
         return;
@@ -383,61 +373,21 @@
 
       try {
         const result = await signup(username, email, password);
-        
         showMessage('Account created successfully! You can now login.', 'success');
-        
-        // Clear form
         signupForm.reset();
         passwordStrengthDiv.innerHTML = '';
-        
-        // Redirect to login after a short delay
         setTimeout(() => {
           window.location.href = 'login.html';
         }, 2000);
-
-            } catch (error) {
-                console.error('Signup error:', error);
-                showNotification(error.message || 'Signup failed', 'error');
-                logDebug('error', error.message);
-            } finally {
-                signupBtn.innerHTML = originalContent;
-                signupBtn.disabled = false;
-            }
-        }
-
-        function showNotification(message, type) {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.className = `notification ${type}`;
-            notification.style.display = 'block';
-        }
-
-        function hideNotification() {
-            const notification = document.getElementById('notification');
-            notification.style.display = 'none';
-        }
-
-        function continueAsGuest() {
-            // Clear any existing auth data
-            if (typeof(Storage) !== "undefined") {
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('refresh_token');
-                localStorage.removeItem('user_info');
-            }
-            
-            // Redirect to main app
-            window.location.href = 'index.html';
-        }
-
-        // Check if user is already logged in
-        if (typeof(Storage) !== "undefined" && localStorage.getItem('auth_token')) {
-            continueAsGuest();
-        }
-
-        // Initialize debug info
-        if (debugMode) {
-            updateDebugInfo();
-        }
+      } catch (error) {
+        console.error('Signup error:', error);
+        showMessage(error.message || 'Signup failed', 'error');
+      } finally {
+        signupBtn.textContent = 'Create Account';
+        signupBtn.disabled = false;
+        loading.style.display = 'none';
+      }
+    });
     </script>
 </body>
 </html>
