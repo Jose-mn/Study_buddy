@@ -62,38 +62,8 @@ const sampleQuestions = {
     ]
 };
 
-// Configuration - Try different ports if 5000 doesn't work
-const API_BASE_URLS = [
-    'http://127.0.0.1:5000',
-    'http://localhost:5000',
-    'http://127.0.0.1:8000',
-    'http://localhost:8000'
-];
-
-let API_BASE_URL = API_BASE_URLS[0]; // Default
-
-// Test backend connection
-async function testBackendConnection() {
-    for (const url of API_BASE_URLS) {
-        try {
-            const response = await fetch(`${url}/health`, {
-                method: 'GET',
-                timeout: 3000
-            });
-            if (response.ok) {
-                API_BASE_URL = url;
-                console.log(`Backend connected at: ${url}`);
-                showNotification(`Connected to backend at ${url}`, 'success');
-                return true;
-            }
-        } catch (error) {
-            console.log(`Failed to connect to ${url}:`, error.message);
-        }
-    }
-    
-    showNotification('Unable to connect to backend. Running in offline mode.', 'error');
-    return false;
-}
+// Configuration
+const API_BASE_URL = 'http://127.0.0.1:5000';
 
 // DOM elements
 const notesInput = document.getElementById('notes-input');
