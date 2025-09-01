@@ -11,11 +11,16 @@ import json
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
+
 from flask import Flask, request, jsonify, render_template
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 app = Flask(__name__)  # <-- This defines 'app'
 CORS(app)
+
+
+# Load .env before using os.getenv
+load_dotenv()
 
 
 # JWT
@@ -41,7 +46,7 @@ load_dotenv()  # reads ai_study_buddy/backend/.env
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "8877")
 DB_NAME = os.getenv("DB_NAME", "flashcards_db")
 
 JWT_SECRET = os.getenv("JWT_SECRET_KEY", "change-this-secret")
@@ -66,12 +71,13 @@ jwt = JWTManager(app)
 POOL = pooling.MySQLConnectionPool(
     pool_name="ai_pool",
     pool_size=5,
-    host=DB_HOST,
-    user=DB_USER,
-    password=DB_PASSWORD,
-    database=DB_NAME,
+    host=os.getenv("DB_HOST"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    database=os.getenv("DB_NAME"),   # ✅ pulls from .env (flashcards_db)
     charset="utf8mb4"
 )
+
 
 
 def get_conn():
@@ -280,6 +286,12 @@ def login():
         "expires_in": int(app.config["JWT_ACCESS_TOKEN_EXPIRES"].total_seconds())
     }), 200
 
+from flask import render_template
+
+@app.route('/signup', methods=['GET'])
+def signup_page():
+    return render_template("signup.html")
+
 
 # Refresh: exchange valid refresh token for new access token
 @app.route("/refresh", methods=["POST"])
@@ -487,3 +499,5 @@ def status():
 # ---------------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
+print("DB NAME:", os.getenv("DB_NAME"))

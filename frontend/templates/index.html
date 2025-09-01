@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,14 +8,16 @@
     <link rel="stylesheet" href="../static/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
+
 <body>
     <div class="container">
         <header>
             <h1>AI Study Buddy</h1>
             <div class="subtitle">Multi-Subject Flashcard Generator</div>
-            <p class="tagline">Transform your study notes into interactive flashcards using AI. Perfect for students who want to study smarter, not harder!</p>
+            <p class="tagline">Transform your study notes into interactive flashcards using AI. Perfect for students who
+                want to study smarter, not harder!</p>
         </header>
-        
+
         <nav class="subject-nav">
             <ul>
                 <li><a href="#" class="active" data-subject="all">All Subjects</a></li>
@@ -26,7 +29,7 @@
                 <li><a href="#" data-subject="history">History</a></li>
             </ul>
         </nav>
-        
+
         <div class="main-content">
             <div class="input-section">
                 <h2>Enter Your Study Notes</h2>
@@ -41,7 +44,8 @@
                         <option value="history">History</option>
                     </select>
                 </div>
-                <textarea id="notes-input" placeholder="Paste your study notes here... (e.g., The water cycle consists of evaporation, condensation, precipitation, and collection. Evaporation occurs when water turns into vapor.)"></textarea>
+                <textarea id="notes-input"
+                    placeholder="Paste your study notes here... (e.g., The water cycle consists of evaporation, condensation, precipitation, and collection. Evaporation occurs when water turns into vapor.)"></textarea>
                 <div class="buttons">
                     <button class="btn-primary" id="generate-btn">
                         <i class="fas fa-robot"></i> Generate Flashcards
@@ -54,7 +58,7 @@
                     </button>
                 </div>
             </div>
-            
+
             <div class="output-section">
                 <h2>Your Flashcards <span id="subject-indicator"></span></h2>
                 <div class="flashcards-container" id="flashcards">
@@ -62,7 +66,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="features">
             <div class="feature">
                 <i class="fas fa-brain"></i>
@@ -80,7 +84,7 @@
                 <p>Supports UN Sustainable Development Goal #4: Quality Education</p>
             </div>
         </div>
-        
+
         <section class="pricing">
             <h2>Pricing Plans</h2>
             <div class="pricing-cards">
@@ -121,11 +125,12 @@
             </div>
         </section>
     </div>
-    
+
     <footer>
         <p>AI Study Buddy - Created for the SDG Quality Education Hackathon | © 2023</p>
     </footer>
 
     <script src="../static/main.js"></script>
 </body>
+
 </html>
