@@ -351,10 +351,10 @@ def login():
 
         conn = get_conn()
         cur = conn.cursor(dictionary=True)
-        
+
         # Try both username and email
         cur.execute(
-            "SELECT id, username, email, password FROM users WHERE username = %s OR email = %s", 
+            "SELECT id, username, email, password FROM users WHERE username = %s OR email = %s",
             (username_or_email, username_or_email)
         )
         user = cur.fetchone()
@@ -375,11 +375,14 @@ def login():
         expires_at = datetime.utcfromtimestamp(exp_ts)
         store_refresh_token(jti, user_id, expires_at)
 
-    return jsonify({
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "expires_in": int(app.config["JWT_ACCESS_TOKEN_EXPIRES"].total_seconds())
-    }), 200
+        return jsonify({
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": int(app.config["JWT_ACCESS_TOKEN_EXPIRES"].total_seconds())
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+  
 
 
 @app.route("/refresh", methods=["POST"])
