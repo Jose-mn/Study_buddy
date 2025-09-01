@@ -13,6 +13,10 @@ from dotenv import load_dotenv
 
 from flask import Flask, request, jsonify, render_template
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_cors import CORS
+app = Flask(__name__)  # <-- This defines 'app'
+CORS(app)
+
 
 # JWT
 from flask_jwt_extended import (
@@ -232,6 +236,11 @@ def signup():
         return jsonify({"error": "username or email already exists"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/health', methods=['GET'])
+def health():
+    return {"status": "ok"}, 200
+
 
 
 # Login: return access + refresh tokens and store refresh JTI
