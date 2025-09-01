@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Buddy - Enhanced Learning Platform</title>
+    <link rel="stylesheet" href="../static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- XP Gain Animation Container -->
+    <div id="xp-container"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <i class="fas fa-brain"></i>
+            <span>AI Study Buddy</span>
+        </div>
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-section="create">
+                <i class="fas fa-plus"></i> Create
+            </button>
+            <button class="nav-tab" data-section="study">
+                <i class="fas fa-book"></i> Study
+            </button>
+            <button class="nav-tab" data-section="groups">
+                <i class="fas fa-layer-group"></i> Groups
+            </button>
+            <button class="nav-tab" data-section="progress">
+                <i class="fas fa-chart-line"></i> Progress
+            </button>
+            <button class="nav-tab" data-section="timetable">
+                <i class="fas fa-calendar"></i> Timetable
+            </button>
+        </div>
+        <div class="nav-actions">
+            <button id="logout-btn" class="btn btn-outline hidden">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+    </nav>
+
+    <!-- Level Progress Bar -->
+    <div id="level-progress-container" class="level-progress-container hidden">
+        <div class="level-info">
+            <span>Level <span id="current-level">1</span></span>
+            <span><span id="xp-to-next">100</span> XP to Level <span id="next-level">2</span></span>
+        </div>
+        <div class="progress-bar">
+            <div id="level-progress-fill" class="progress-fill"></div>
+        </div>
+    </div>
+
+    <!-- Auth Section -->
+    <div id="auth-section" class="auth-section">
+        <div class="auth-container">
+            <div class="auth-header">
+                <button id="show-login" class="auth-toggle active">Login</button>
+                <button id="show-signup" class="auth-toggle">Sign Up</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form">
+                <div class="form-group">
+                    <label for="login-username">Username or Email</label>
+                    <input type="text" id="login-username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <button type="button" id="login-btn" class="btn btn-primary full-width">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </form>
+
+            <!-- Signup Form -->
+            <form id="signup-form" class="auth-form hidden">
+                <div class="form-group">
+                    <label for="signup-username">Username</label>
+                    <input type="text" id="signup-username" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-email">Email</label>
+                    <input type="email" id="signup-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" required>
+                </div>
+                <button type="button" id="signup-btn" class="btn btn-primary full-width">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Dashboard -->
+    <div id="user-dashboard" class="user-dashboard hidden">
+        <div class="dashboard-cards">
+            <div class="dashboard-card">
+                <div class="card-icon">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div class="card-content">
+                    <div class="card-value" id="user-level">1</div>
+                    <div class="card-label">Level</div>
+                </div>
+            </div>
+            <div class="dashboard-card">
+                <div class="card-icon">
+                    <i class="fas fa-star"></i>
+                </div>
+                <div class="card-content">
+                    <div class="card-value" id="user-xp">0</div>
+                    <div class="card-label">XP Points</div>
+                </div>
+            </div>
+            <div class="dashboard-card">
+                <div class="card-icon">
+                    <i class="fas fa-fire"></i>
+                </div>
+                <div class="card-content">
+                    <div class="card-value" id="current-streak">0</div>
+                    <div class="card-label">Day Streak</div>
+                </div>
+            </div>
+            <div class="dashboard-card">
+                <div class="card-icon">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <div class="card-content">
+                    <div class="card-value" id="total-cards">0</div>
+                    <div class="card-label">Total Cards</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Create Section -->
+        <div id="create-section" class="content-section active">
+            <div class="section-header">
+                <h2><i class="fas fa-plus"></i> Create Flashcards</h2>
+                <p>Generate AI-powered flashcards or create your own</p>
+            </div>
+
+            <div class="create-container">
+                <div class="input-section">
+                    <div class="form-group">
+                        <label for="subject-select">Subject</label>
+                        <select id="subject-select">
+                            <option value="math">Mathematics</option>
+                            <option value="english">English</option>
+                            <option value="spanish">Spanish</option>
+                            <option value="german">German</option>
+                            <option value="science">Science</option>
+                            <option value="history">History</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="difficulty-select">Difficulty</label>
+                        <select id="difficulty-select">
+                            <option value="easy">Easy (3 XP)</option>
+                            <option value="medium" selected>Medium (5 XP)</option>
+                            <option value="hard">Hard (8 XP)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="group-name">Group Name (Optional)</label>
+                        <input type="text" id="group-name" placeholder="e.g., Chapter 5 - Algebra">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notes-input">Study Notes</label>
+                        <textarea id="notes-input" rows="6"
+                            placeholder="Enter your study notes here. The AI will generate flashcards based on this content..."></textarea>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="generate-ai-btn" class="btn btn-primary">
+                            <i class="fas fa-magic"></i> Generate with AI
+                        </button>
+                        <button id="clear-all-btn" class="btn btn-outline">
+                            <i class="fas fa-trash"></i> Clear All
+                        </button>
+                    </div>
+
+                    <!-- Manual Card Creation -->
+                    <div class="manual-section">
+                        <h3><i class="fas fa-edit"></i> Or Add Manual Card</h3>
+                        <div class="form-group">
+                            <label for="manual-question">Question</label>
+                            <input type="text" id="manual-question" placeholder="Enter your question...">
+                        </div>
+                        <div class="form-group">
+                            <label for="manual-answer">Answer</label>
+                            <textarea id="manual-answer" rows="3" placeholder="Enter the answer..."></textarea>
+                        </div>
+                        <button id="add-manual-btn" class="btn btn-secondary">
+                            <i class="fas fa-plus"></i> Add Manual Card
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview Section -->
+                <div class="preview-section">
+                    <h3><i class="fas fa-eye"></i> Preview</h3>
+                    <div id="preview-flashcard" class="flashcard">
+                        <div class="flashcard-inner">
+                            <div class="flashcard-front">
+                                <div class="xp-badge">5 XP</div>
+                                <div class="difficulty-badge difficulty-medium">Medium</div>
+                                <i class="fas fa-question-circle"></i>
+                                <p id="preview-question">Click 'Generate with AI' or add a manual question to see
+                                    preview</p>
+                            </div>
+                            <div class="flashcard-back">
+                                <div class="xp-badge">5 XP</div>
+                                <div class="difficulty-badge difficulty-medium">Medium</div>
+                                <i class="fas fa-lightbulb"></i>
+                                <p id="preview-answer">Answer will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="preview-hint">Click the card to flip it!</p>
+                </div>
+            </div>
+
+            <!-- Generated Cards -->
+            <div id="generated-cards" class="generated-cards hidden">
+                <div class="section-header">
+                    <h3><i class="fas fa-cards-blank"></i> Generated Flashcards</h3>
+                    <div class="card-actions">
+                        <button id="save-cards-btn" class="btn btn-success">
+                            <i class="fas fa-save"></i> Save All Cards
+                        </button>
+                    </div>
+                </div>
+                <div id="cards-container" class="cards-container"></div>
+            </div>
+        </div>
+
+        <!-- Study Section -->
+        <div id="study-section" class="content-section">
+            <div class="section-header">
+                <h2><i class="fas fa-book"></i> Study Session</h2>
+                <p>Review your flashcards and earn XP</p>
+            </div>
+
+            <div class="study-container">
+                <div class="session-controls">
+                    <button id="start-session-btn" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Start Session
+                    </button>
+                    <button id="pause-session-btn" class="btn btn-secondary hidden">
+                        <i class="fas fa-pause"></i> Pause
+                    </button>
+                    <button id="end-session-btn" class="btn btn-danger hidden">
+                        <i class="fas fa-stop"></i> End Session
+                    </button>
+                    <div class="session-timer">
+                        <i class="fas fa-clock"></i>
+                        <span id="session-timer">00:00</span>
+                    </div>
+                </div>
+
+                <!-- Study Interface -->
+                <div id="review-interface" class="review-interface hidden">
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div id="study-progress-fill" class="progress-fill"></div>
+                        </div>
+                        <div id="progress-text" class="progress-text">Card 1 of 10</div>
+                    </div>
+
+                    <div id="study-flashcard" class="flashcard study-flashcard">
+                        <div class="flashcard-inner">
+                            <div class="flashcard-front">
+                                <div id="study-xp-badge" class="xp-badge">5 XP</div>
+                                <div id="study-difficulty-badge" class="difficulty-badge difficulty-medium">Medium</div>
+                                <i class="fas fa-question-circle"></i>
+                                <p id="study-question">Your question will appear here</p>
+                            </div>
+                            <div class="flashcard-back">
+                                <div id="study-xp-badge-back" class="xp-badge">5 XP</div>
+                                <div id="study-difficulty-badge-back" class="difficulty-badge difficulty-medium">Medium
+                                </div>
+                                <i class="fas fa-lightbulb"></i>
+                                <p id="study-answer">The answer will be revealed here</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="review-controls">
+                        <button id="reveal-answer-btn" class="btn btn-primary">
+                            <i class="fas fa-eye"></i> Reveal Answer
+                        </button>
+
+                        <div id="answer-controls" class="answer-controls hidden">
+                            <p>How did you do?</p>
+                            <div class="answer-buttons">
+                                <button id="incorrect-btn" class="btn btn-danger">
+                                    <i class="fas fa-times"></i> Incorrect
+                                </button>
+                                <button id="correct-btn" class="btn btn-success">
+                                    <i class="fas fa-check"></i> Correct
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Groups Section -->
+        <div id="groups-section" class="content-section">
+            <div class="section-header">
+                <h2><i class="fas fa-layer-group"></i> Flashcard Groups</h2>
+                <p>Organize and study your flashcards by groups</p>
+            </div>
+
+            <div id="groups-list" class="groups-list">
+                <!-- Groups will be populated here -->
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div id="progress-section" class="content-section">
+            <div class="section-header">
+                <h2><i class="fas fa-chart-line"></i> Your Progress</h2>
+                <p>Track your learning journey and achievements</p>
+            </div>
+
+            <div id="progress-stats" class="progress-stats">
+                <!-- Progress stats will be populated here -->
+            </div>
+        </div>
+
+        <!-- In your timetable section -->
+        <div id="timetable-section" class="content-section">
+            <div class="section-header">
+                <h2>Study Timetable</h2>
+                <button id="add-timetable-btn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Add Study Time
+                </button>
+            </div>
+
+            <!-- Timetable Form (initially hidden) -->
+            <div id="timetable-form" class="card hidden" style="margin-bottom: 20px;">
+                <h3>Add Study Time</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="timetable-subject">Subject</label>
+                        <select id="timetable-subject" class="form-control">
+                            <option value="math">Mathematics</option>
+                            <option value="english">English</option>
+                            <option value="spanish">Spanish</option>
+                            <option value="german">German</option>
+                            <option value="science">Science</option>
+                            <option value="history">History</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="timetable-day">Day</label>
+                        <select id="timetable-day" class="form-control">
+                            <option value="Monday">Monday</option>
+                            <option value="Tuesday">Tuesday</option>
+                            <option value="Wednesday">Wednesday</option>
+                            <option value="Thursday">Thursday</option>
+                            <option value="Friday">Friday</option>
+                            <option value="Saturday">Saturday</option>
+                            <option value="Sunday">Sunday</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="timetable-start">Start Time</label>
+                        <input type="time" id="timetable-start" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="timetable-end">End Time</label>
+                        <input type="time" id="timetable-end" class="form-control">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button id="save-timetable-btn" class="btn btn-primary">Save</button>
+                    <button id="cancel-timetable-btn" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Timetable Display -->
+            <div id="timetable-display" class="timetable-grid"></div>
+        </div>
+        <!-- Connection Status -->
+        <div id="connection-status" class="connection-status">
+            <span id="status-text">Connecting...</span>
+            <span id="status-indicator" class="status-indicator"></span>
+        </div>
+
+        <!-- Scripts -->
+        <!-- <script src="https://unpkg.com/@supabase/supabase-js@2"></script> -->
+        <script src="../static/main.js"></script>
+</body>
+
+</html>
