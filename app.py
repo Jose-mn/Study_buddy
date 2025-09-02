@@ -38,7 +38,7 @@ load_dotenv()  # reads .env file
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "Nala@2023#Reina")  # Update with your password
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")  # Update with your password
 DB_NAME = os.getenv("DB_NAME", "studybuddy")
 
 JWT_SECRET = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-in-production")
@@ -50,7 +50,7 @@ INTASEND_TEST = os.getenv("INTASEND_TEST", "True").lower() in ("1", "true", "yes
 
 
 # HuggingFace Configuration
-HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN", "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")
+HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN", "") # addd the token here
 HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "microsoft/DialoGPT-medium")
 # ---------------------------
 # Flask + JWT config
@@ -255,78 +255,131 @@ def is_refresh_token_revoked(jti):
 # HuggingFace Integration
 # ---------------------------
 def generate_flashcard_with_huggingface(notes, subject, difficulty='medium'):
-    """Generate flashcard using HuggingFace API"""
+    """Generate flashcard using HuggingFace API with proper error handling"""
     if not HUGGINGFACE_API_TOKEN:
         logger.warning("HuggingFace API token not configured")
         return None
     
     try:
-        # Craft prompt based on difficulty
-        difficulty_prompts = {
-            'easy': "Create a simple question and answer from these notes:",
-            'medium': "Create a moderately challenging question and answer from these notes:",
-            'hard': "Create a complex, analytical question and answer from these notes:"
+        # Better prompts for each difficulty level
+        prompts = {
+            'easy': f"Create a simple question and answer for beginners learning {subject}. Based on these notes: {notes[:600]}.\n\nFormat your response as:\nQuestion: [your question]\nAnswer: [your answer]",
+            'medium': f"Create a moderately challenging question about {subject} that tests understanding. Based on these notes: {notes[:600]}.\n\nFormat your response as:\nQuestion: [your question]\nAnswer: [your answer]",
+            'hard': f"Create a complex analytical question about {subject} that requires critical thinking. Based on these notes: {notes[:600]}.\n\nFormat your response as:\nQuestion: [your question]\nAnswer: [your answer]"
         }
         
-        prompt = f"{difficulty_prompts.get(difficulty, difficulty_prompts['medium'])} {notes[:500]}"
+        prompt = prompts.get(difficulty, prompts['medium'])
         
         headers = {
             'Authorization': f'Bearer {HUGGINGFACE_API_TOKEN}',
             'Content-Type': 'application/json'
         }
         
-        # Using text generation model
+        # Use a better model for text generation
         api_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
         
         payload = {
             "inputs": prompt,
             "parameters": {
-                "max_new_tokens": 150,
+                "max_new_tokens": 250,
                 "temperature": 0.7,
-                "do_sample": True
+                "do_sample": True,
+                "return_full_text": False
+            },
+            "options": {
+                "wait_for_model": True
             }
         }
         
-        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            result = response.json()
-            if isinstance(result, list) and len(result) > 0:
-                generated_text = result[0].get('generated_text', '')
-                # Parse the generated text to extract Q&A
-                return parse_generated_flashcard(generated_text, prompt)
-        
-        logger.error(f"HuggingFace API error: {response.status_code} - {response.text}")
+        # Add timeout and retry logic
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    logger.info(f"HuggingFace response: {result}")
+                    
+                    if isinstance(result, list) and len(result) > 0:
+                        generated_text = result[0].get('generated_text', '')
+                        if generated_text:
+                            return parse_generated_flashcard(generated_text, subject, difficulty)
+                
+                elif response.status_code == 503:
+                    # Model loading, wait and retry
+                    logger.info(f"Model loading, waiting... (attempt {attempt + 1})")
+                    time.sleep(20)
+                    continue
+                    
+                else:
+                    logger.error(f"HuggingFace API error {response.status_code}: {response.text}")
+                    break
+                    
+            except requests.exceptions.Timeout:
+                logger.warning(f"HuggingFace API timeout (attempt {attempt + 1})")
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+                    continue
+                    
         return None
         
     except Exception as e:
         logger.error(f"HuggingFace generation error: {e}")
         return None
-
-def parse_generated_flashcard(generated_text, original_prompt):
-    """Parse generated text into question and answer"""
+    
+def parse_generated_flashcard(generated_text, subject, difficulty):
+    """Enhanced parsing with multiple fallback strategies"""
     try:
-        # Remove the original prompt from the response
-        clean_text = generated_text.replace(original_prompt, '').strip()
+        # Clean the text
+        text = generated_text.strip()
         
-        # Simple parsing - look for Q: and A: patterns or split by newlines
-        lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
+        # Strategy 1: Look for "Question:" and "Answer:" format
+        if "Question:" in text and "Answer:" in text:
+            parts = text.split("Answer:")
+            question = parts[0].replace("Question:", "").strip()
+            answer = parts[1].strip()
         
-        if len(lines) >= 2:
-            question = lines[0].replace('Q:', '').replace('Question:', '').strip()
-            answer = ' '.join(lines[1:]).replace('A:', '').replace('Answer:', '').strip()
+        # Strategy 2: Look for "Q:" and "A:" format
+        elif "Q:" in text and "A:" in text:
+            parts = text.split("A:")
+            question = parts[0].replace("Q:", "").strip()
+            answer = parts[1].strip()
+        
+        # Strategy 3: Split by newlines and assume first is question
+        elif "\n" in text:
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            if len(lines) >= 2:
+                question = lines[0]
+                answer = " ".join(lines[1:])
+            else:
+                question = f"What can you tell me about {subject}?"
+                answer = text
+        
+        # Strategy 4: Use entire text as answer with generated question
         else:
-            # Fallback: use the whole text as question
-            question = clean_text[:100] + "?"
-            answer = "Please refer to your study notes for the complete answer."
+            question = f"Based on your {subject} knowledge, explain this concept:"
+            answer = text
+        
+        # Clean and validate
+        question = question[:500].strip()
+        answer = answer[:1000].strip()
+        
+        if not question or not answer:
+            return None
         
         return {
             'question': question,
-            'answer': answer
+            'answer': answer,
+            'subject': subject,
+            'difficulty': difficulty
         }
+        
     except Exception as e:
         logger.error(f"Error parsing generated flashcard: {e}")
         return None
+
 
 def update_user_streak_on_completion(user_id):
     """Update user's study streak when they complete a task"""
@@ -510,6 +563,47 @@ def parse_generated_flashcard(generated_text, subject, difficulty):
         logger.error(f"Error parsing generated flashcard: {e}")
         return None
     
+
+def generate_flashcard_with_flan_t5(notes, subject, difficulty='medium'):
+    """Alternative HuggingFace implementation using Flan-T5"""
+    if not HUGGINGFACE_API_TOKEN:
+        return None
+    
+    try:
+        # Flan-T5 works better with instruction-following
+        instruction = f"Create a {difficulty}-level question and answer about {subject} based on these study notes. Format: Q: [question] A: [answer]"
+        prompt = f"{instruction}\n\nNotes: {notes[:500]}"
+        
+        headers = {
+            'Authorization': f'Bearer {HUGGINGFACE_API_TOKEN}',
+            'Content-Type': 'application/json'
+        }
+        
+        api_url = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+        
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": 200,
+                "temperature": 0.8
+            }
+        }
+        
+        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                generated_text = result[0].get('generated_text', '')
+                return parse_generated_flashcard(generated_text, subject, difficulty)
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Flan-T5 generation error: {e}")
+        return None
+
+    
 @app.route("/update_xp", methods=["POST"])
 @jwt_required()
 def update_xp():
@@ -655,7 +749,308 @@ def check_milestone():
 
 
 
+# Add these missing endpoints to your Flask backend
 
+# 1. Generate AI flashcards endpoint (called by generateAIFlashcards())
+# @app.route("/generate_flashcards", methods=["POST"])
+# @jwt_required(optional=True)
+# def generate_flashcards():
+#     """Generate flashcards using HuggingFace AI"""
+#     try:
+#         data = request.get_json() or {}
+#         notes = data.get("notes", "").strip()
+#         subject = data.get("subject", "general")
+#         difficulty = data.get("difficulty", "medium")
+        
+#         if not notes:
+#             return jsonify({"error": "Notes are required"}), 400
+        
+#         # Try to generate with HuggingFace
+#         generated_cards = []
+#         for i in range(3):  # Generate 3 cards
+#             ai_card = generate_flashcard_with_huggingface(notes, subject, difficulty)
+#             if ai_card:
+#                 generated_cards.append(ai_card)
+#             else:
+#                 # Fallback to sample data
+#                 fallback_card = {
+#                     'question': f"What key concept from {subject} can you identify in these notes?",
+#                     'answer': f"Based on the notes: {notes[:100]}...",
+#                     'subject': subject,
+#                     'difficulty': difficulty
+#                 }
+#                 generated_cards.append(fallback_card)
+        
+#         return jsonify({"flashcards": generated_cards}), 200
+        
+#     except Exception as e:
+#         logger.error(f"Generate flashcards error: {e}")
+#         return jsonify({"error": "Failed to generate flashcards"}), 500
+
+# 2. Todo endpoints (called by todo functions)
+@app.route("/todos", methods=["GET"])
+@jwt_required()
+def get_todos():
+    """Get user's todo items"""
+    try:
+        user_id = get_jwt_identity()
+        
+        conn = get_conn()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute(
+            """
+            SELECT id, title, description, due_date, priority, subject, completed, created_at
+            FROM todos 
+            WHERE user_id = %s
+            ORDER BY due_date ASC, created_at DESC
+            """,
+            (user_id,)
+        )
+        
+        todos = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"todos": todos}), 200
+        
+    except Exception as e:
+        logger.error(f"Get todos error: {e}")
+        return jsonify({"error": "Failed to retrieve todos"}), 500
+
+@app.route("/todos", methods=["POST"])
+@jwt_required()
+def save_todo():
+    """Save new todo item"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        title = data.get("title", "").strip()
+        description = data.get("description", "").strip()
+        due_date = data.get("date")
+        priority = data.get("priority", "medium")
+        subject = data.get("subject", "other")
+        
+        if not title or not due_date:
+            return jsonify({"error": "Title and due date are required"}), 400
+        
+        conn = get_conn()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """
+            INSERT INTO todos (user_id, title, description, due_date, priority, subject)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (user_id, title, description, due_date, priority, subject)
+        )
+        
+        conn.commit()
+        todo_id = cursor.lastrowid
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Todo saved successfully",
+            "id": todo_id
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Save todo error: {e}")
+        return jsonify({"error": "Failed to save todo"}), 500
+
+@app.route("/todos/<int:todo_id>", methods=["PUT"])
+@jwt_required()
+def update_todo(todo_id):
+    """Update todo completion status"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json() or {}
+        completed = data.get("completed", False)
+        
+        conn = get_conn()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """
+            UPDATE todos 
+            SET completed = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND user_id = %s
+            """,
+            (completed, todo_id, user_id)
+        )
+        
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Todo not found"}), 404
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        # Award XP for completion
+        if completed:
+            # You can call your existing update_xp endpoint internally
+            pass
+        
+        return jsonify({"message": "Todo updated successfully"}), 200
+        
+    except Exception as e:
+        logger.error(f"Update todo error: {e}")
+        return jsonify({"error": "Failed to update todo"}), 500
+
+@app.route("/todos/<int:todo_id>", methods=["DELETE"])
+@jwt_required()
+def delete_todo(todo_id):
+    """Delete todo item"""
+    try:
+        user_id = get_jwt_identity()
+        
+        conn = get_conn()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "DELETE FROM todos WHERE id = %s AND user_id = %s",
+            (todo_id, user_id)
+        )
+        
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Todo not found"}), 404
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"message": "Todo deleted successfully"}), 200
+        
+    except Exception as e:
+        logger.error(f"Delete todo error: {e}")
+        return jsonify({"error": "Failed to delete todo"}), 500
+
+# 3. Enhanced user profile endpoint
+@app.route("/profile", methods=["GET"])
+@jwt_required()
+def get_user_profile():
+    """Get comprehensive user profile with stats"""
+    try:
+        user_id = get_jwt_identity()
+        
+        conn = get_conn()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get user basic info with stats
+        cursor.execute(
+            """
+            SELECT id, username, email, xp, level, current_streak, 
+                   best_streak, total_cards, created_at
+            FROM users 
+            WHERE id = %s
+            """,
+            (user_id,)
+        )
+        
+        user = cursor.fetchone()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Get subject breakdown
+        cursor.execute(
+            """
+            SELECT subject, COUNT(*) as count
+            FROM flashcards 
+            WHERE user_id = %s
+            GROUP BY subject
+            ORDER BY count DESC
+            """,
+            (user_id,)
+        )
+        
+        subjects = cursor.fetchall()
+        
+        # Get recent activity
+        cursor.execute(
+            """
+            SELECT created_at, 'flashcard' as activity_type, subject
+            FROM flashcards 
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT 10
+            """,
+            (user_id,)
+        )
+        
+        activities = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            "user": user,
+            "subjects": subjects,
+            "recent_activities": activities
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Get profile error: {e}")
+        return jsonify({"error": "Failed to retrieve profile"}), 500
+
+# 4. Missing database table for todos
+def ensure_tables():
+    """Create all necessary tables if they don't exist - ADD THIS TO YOUR EXISTING FUNCTION"""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    try:
+        # Add this todos table creation to your existing ensure_tables function
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS todos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            description TEXT,
+            due_date DATE NOT NULL,
+            priority ENUM('low', 'medium', 'high') DEFAULT 'medium',
+            subject VARCHAR(50) DEFAULT 'other',
+            completed BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_user_due (user_id, due_date),
+            INDEX idx_completed (completed)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        """)
+        
+        # Add this timetable table to your existing ensure_tables function
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS timetable_entries (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            subject VARCHAR(50) NOT NULL,
+            day_of_week VARCHAR(10) NOT NULL,
+            start_time TIME NOT NULL,
+            end_time TIME NOT NULL,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_user_day (user_id, day_of_week)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        """)
+        
+        conn.commit()
+        logger.info("Additional tables created/verified successfully")
+        
+    except Exception as e:
+        logger.error(f"Additional table creation failed: {e}")
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
 
 
 
@@ -1676,20 +2071,92 @@ def dashboard():
         }
     }), 200
 
+# Update your generate_flashcards endpoint to use both models
 @app.route("/generate_flashcards", methods=["POST"])
 @jwt_required(optional=True)
 def generate_flashcards():
-    data = request.get_json() or {}
-    notes = data.get("notes", "")
-    subject = data.get("subject", "general")
-    difficulty = data.get("difficulty", "medium")
+    """Enhanced generate flashcards with fallbacks"""
+    try:
+        data = request.get_json() or {}
+        notes = data.get("notes", "").strip()
+        subject = data.get("subject", "general")
+        difficulty = data.get("difficulty", "medium")
+        count = data.get("count", 3)  # Allow customizable count
+        
+        if not notes:
+            return jsonify({"error": "Notes are required"}), 400
+        
+        generated_cards = []
+        
+        # Try generating multiple cards
+        for i in range(min(count, 5)):  # Max 5 cards per request
+            # Try primary method
+            ai_card = generate_flashcard_with_huggingface(notes, subject, difficulty)
+            
+            # Try alternative method if first fails
+            if not ai_card:
+                ai_card = generate_flashcard_with_flan_t5(notes, subject, difficulty)
+            
+            # Fallback to rule-based generation
+            if not ai_card:
+                ai_card = generate_fallback_flashcard(notes, subject, difficulty, i)
+            
+            if ai_card:
+                generated_cards.append(ai_card)
+        
+        if not generated_cards:
+            return jsonify({"error": "Failed to generate flashcards"}), 500
+        
+        return jsonify({"flashcards": generated_cards}), 200
+        
+    except Exception as e:
+        logger.error(f"Generate flashcards error: {e}")
+        return jsonify({"error": "Failed to generate flashcards"}), 500
 
-    # Simple mock flashcards (replace with AI integration later)
-    flashcards = [
-        {"question": f"What is 1+1? ({subject})", "answer": "2", "difficulty": difficulty},
-        {"question": f"Explain: {notes[:30]}...", "answer": "Sample AI answer", "difficulty": difficulty}
-    ]
-    return jsonify({"flashcards": flashcards}), 200
+
+def generate_fallback_flashcard(notes, subject, difficulty, index=0):
+    """Generate fallback flashcard when AI fails"""
+    try:
+        # Extract key phrases from notes
+        words = notes.split()
+        key_concepts = [word for word in words if len(word) > 5][:3]
+        
+        questions = {
+            'easy': [
+                f"What is the main topic discussed in these {subject} notes?",
+                f"Define the key concept mentioned in these {subject} notes.",
+                f"What can you learn from these {subject} notes?"
+            ],
+            'medium': [
+                f"How do the concepts in these {subject} notes relate to each other?",
+                f"Explain the significance of {key_concepts[0] if key_concepts else 'the main concept'} in {subject}.",
+                f"What are the practical applications of these {subject} concepts?"
+            ],
+            'hard': [
+                f"Analyze the implications of the concepts discussed in these {subject} notes.",
+                f"How might these {subject} concepts be applied to solve complex problems?",
+                f"What are the potential limitations or criticisms of these {subject} ideas?"
+            ]
+        }
+        
+        question_list = questions.get(difficulty, questions['medium'])
+        question = question_list[index % len(question_list)]
+        
+        # Create answer based on notes
+        answer = f"Based on the provided notes: {notes[:200]}..."
+        if len(notes) > 200:
+            answer += " [Key concepts to review from your complete notes]"
+        
+        return {
+            'question': question,
+            'answer': answer,
+            'subject': subject,
+            'difficulty': difficulty
+        }
+        
+    except Exception as e:
+        logger.error(f"Fallback generation error: {e}")
+        return None
 
 @app.route("/study_session", methods=["GET"])
 @jwt_required()
@@ -2137,6 +2604,344 @@ def delete_timetable_entry(entry_id):
     except Exception as e:
         logger.error(f"Delete timetable error: {e}")
         return jsonify({"error": "Failed to delete timetable entry"}), 500
+    
+
+# Add these testing endpoints and improved HuggingFace functions to your backend
+
+import random
+import hashlib
+
+# Test endpoint to verify HuggingFace connection
+@app.route("/test_huggingface", methods=["POST"])
+@jwt_required(optional=True)
+def test_huggingface():
+    """Test HuggingFace API connection and response quality"""
+    try:
+        data = request.get_json() or {}
+        test_notes = data.get("notes", "Python is a programming language known for its simplicity and readability.")
+        
+        if not HUGGINGFACE_API_TOKEN:
+            return jsonify({
+                "error": "HuggingFace token not configured",
+                "token_configured": False,
+                "instructions": "Add HUGGINGFACE_API_TOKEN to your .env file"
+            }), 400
+        
+        # Test API connection first
+        headers = {'Authorization': f'Bearer {HUGGINGFACE_API_TOKEN}'}
+        test_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
+        
+        # Simple test request
+        test_payload = {
+            "inputs": "Hello, how are you?",
+            "parameters": {"max_new_tokens": 10}
+        }
+        
+        response = requests.post(test_url, headers=headers, json=test_payload, timeout=30)
+        
+        return jsonify({
+            "api_status": response.status_code,
+            "api_response": response.json() if response.status_code == 200 else response.text,
+            "token_configured": True,
+            "test_generation": generate_test_flashcard(test_notes)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"HuggingFace test error: {e}")
+        return jsonify({
+            "error": str(e),
+            "token_configured": bool(HUGGINGFACE_API_TOKEN)
+        }), 500
+
+def generate_test_flashcard(notes):
+    """Test flashcard generation with detailed logging"""
+    try:
+        result = generate_improved_flashcard(notes, "programming", "medium")
+        return {
+            "success": result is not None,
+            "flashcard": result,
+            "notes_hash": hashlib.md5(notes.encode()).hexdigest()[:8]
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+def generate_improved_flashcard(notes, subject, difficulty='medium'):
+    """Improved flashcard generation with better uniqueness"""
+    if not HUGGINGFACE_API_TOKEN:
+        logger.warning("HuggingFace token not configured")
+        return None
+    
+    try:
+        # Create more varied prompts based on content analysis
+        note_words = notes.lower().split()
+        key_terms = [word for word in note_words if len(word) > 4 and word.isalpha()]
+        
+        # Generate a seed for randomness
+        content_seed = abs(hash(notes + subject + difficulty)) % 1000
+        random.seed(content_seed)
+        
+        # Multiple prompt strategies for variety
+        prompt_strategies = {
+            'definition': f"Based on these {subject} notes, create a definition question:\n{notes[:500]}\n\nQ:",
+            'application': f"Create a practical application question about {subject} from these notes:\n{notes[:500]}\n\nQ:",
+            'comparison': f"Create a comparison or analysis question about {subject} from these notes:\n{notes[:500]}\n\nQ:",
+            'example': f"Create a question asking for an example or case study about {subject} from these notes:\n{notes[:500]}\n\nQ:",
+            'explanation': f"Create an explanation question about {subject} concepts from these notes:\n{notes[:500]}\n\nQ:"
+        }
+        
+        # Choose strategy based on difficulty and randomness
+        if difficulty == 'easy':
+            strategies = ['definition', 'example']
+        elif difficulty == 'medium':
+            strategies = ['application', 'explanation']
+        else:  # hard
+            strategies = ['comparison', 'analysis']
+        
+        chosen_strategy = random.choice(strategies) if strategies else 'explanation'
+        prompt = prompt_strategies.get(chosen_strategy, prompt_strategies['explanation'])
+        
+        headers = {
+            'Authorization': f'Bearer {HUGGINGFACE_API_TOKEN}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Try different models for variety
+        models = [
+            "microsoft/DialoGPT-medium",
+            "facebook/blenderbot-400M-distill",
+            "microsoft/DialoGPT-small"
+        ]
+        
+        model = random.choice(models)
+        api_url = f"https://api-inference.huggingface.co/models/{model}"
+        
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": 150,
+                "temperature": 0.8 + (random.random() * 0.4),  # 0.8-1.2 for variety
+                "top_p": 0.9,
+                "do_sample": True,
+                "repetition_penalty": 1.2
+            },
+            "options": {
+                "wait_for_model": True,
+                "use_cache": False  # Important for uniqueness!
+            }
+        }
+        
+        logger.info(f"Trying model: {model} with strategy: {chosen_strategy}")
+        
+        response = requests.post(api_url, headers=headers, json=payload, timeout=45)
+        
+        if response.status_code == 200:
+            result = response.json()
+            logger.info(f"HuggingFace raw response: {result}")
+            
+            if isinstance(result, list) and len(result) > 0:
+                generated_text = result[0].get('generated_text', '')
+                if generated_text:
+                    parsed = parse_improved_flashcard(generated_text, prompt, subject, difficulty, chosen_strategy)
+                    if parsed:
+                        logger.info(f"Successfully generated with {chosen_strategy} strategy")
+                        return parsed
+        
+        elif response.status_code == 503:
+            logger.warning("Model loading, trying fallback...")
+            return generate_deterministic_fallback(notes, subject, difficulty, content_seed)
+        
+        else:
+            logger.error(f"API Error {response.status_code}: {response.text}")
+            return generate_deterministic_fallback(notes, subject, difficulty, content_seed)
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Improved generation error: {e}")
+        return generate_deterministic_fallback(notes, subject, difficulty, content_seed)
+
+def parse_improved_flashcard(generated_text, original_prompt, subject, difficulty, strategy):
+    """Enhanced parsing with strategy-aware logic"""
+    try:
+        # Remove the original prompt
+        clean_text = generated_text.replace(original_prompt, '').strip()
+        
+        # Strategy-specific parsing
+        if strategy == 'definition':
+            question_starters = ["What is", "Define", "Explain what"]
+        elif strategy == 'application':
+            question_starters = ["How would you", "In what way", "How can"]
+        elif strategy == 'comparison':
+            question_starters = ["How does", "What's the difference", "Compare"]
+        else:
+            question_starters = ["What", "How", "Why", "Explain"]
+        
+        # Multiple parsing attempts
+        question, answer = None, None
+        
+        # Method 1: Look for Q: A: pattern
+        if "Q:" in clean_text and "A:" in clean_text:
+            parts = clean_text.split("A:")
+            question = parts[0].replace("Q:", "").strip()
+            answer = parts[1].strip()
+        
+        # Method 2: Look for ? delimiter
+        elif "?" in clean_text:
+            parts = clean_text.split("?", 1)
+            question = parts[0].strip() + "?"
+            answer = parts[1].strip() if len(parts) > 1 else f"Please refer to your {subject} notes for details."
+        
+        # Method 3: Split by newlines
+        elif "\n" in clean_text:
+            lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
+            if len(lines) >= 2:
+                question = lines[0]
+                answer = " ".join(lines[1:])
+        
+        # Method 4: Generate question from text
+        if not question:
+            starter = random.choice(question_starters)
+            question = f"{starter} {clean_text[:50]}?"
+            answer = clean_text
+        
+        # Clean and validate
+        if question and answer:
+            question = question[:300].strip()
+            answer = answer[:800].strip()
+            
+            # Add variety suffix based on difficulty
+            difficulty_suffixes = {
+                'easy': '',
+                'medium': ' Provide specific examples.',
+                'hard': ' Include analysis of implications and potential limitations.'
+            }
+            
+            if answer and not answer.endswith('.'):
+                answer += '.'
+            answer += difficulty_suffixes.get(difficulty, '')
+            
+            return {
+                'question': question,
+                'answer': answer,
+                'subject': subject,
+                'difficulty': difficulty,
+                'strategy_used': strategy,
+                'generated_by': 'huggingface'
+            }
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Parsing error: {e}")
+        return None
+
+def generate_deterministic_fallback(notes, subject, difficulty, seed):
+    """Generate unique fallback questions using deterministic randomness"""
+    try:
+        random.seed(seed)
+        
+        # Extract meaningful content
+        sentences = [s.strip() for s in notes.replace('!', '.').replace('?', '.').split('.') if len(s.strip()) > 10]
+        words = notes.lower().split()
+        key_terms = [word for word in words if len(word) > 4 and word.isalpha()]
+        
+        # Question templates by difficulty
+        templates = {
+            'easy': [
+                f"What is the main concept about {subject} in these notes?",
+                f"Define the key term related to {subject} mentioned in the notes.",
+                f"List the main points discussed about {subject}."
+            ],
+            'medium': [
+                f"How do the {subject} concepts in these notes relate to practical applications?",
+                f"Explain the significance of {random.choice(key_terms) if key_terms else 'the main concept'} in {subject}.",
+                f"What are the implications of these {subject} concepts?",
+                f"How would you apply these {subject} principles in a real scenario?"
+            ],
+            'hard': [
+                f"Analyze the underlying assumptions in these {subject} concepts.",
+                f"What are the potential limitations or criticisms of these {subject} ideas?",
+                f"How might these {subject} concepts evolve or be challenged in the future?",
+                f"Compare and contrast the different approaches mentioned in these {subject} notes."
+            ]
+        }
+        
+        question_list = templates.get(difficulty, templates['medium'])
+        question = random.choice(question_list)
+        
+        # Create contextual answer
+        if sentences:
+            selected_sentence = random.choice(sentences)
+            answer = f"Based on the provided notes: {selected_sentence}"
+            if len(sentences) > 1:
+                answer += f" Additionally, {random.choice([s for s in sentences if s != selected_sentence])}"
+        else:
+            answer = f"Key concepts from your {subject} notes: {notes[:150]}..."
+        
+        return {
+            'question': question,
+            'answer': answer,
+            'subject': subject,
+            'difficulty': difficulty,
+            'strategy_used': 'deterministic_fallback',
+            'generated_by': 'fallback',
+            'seed_used': seed
+        }
+        
+    except Exception as e:
+        logger.error(f"Fallback generation error: {e}")
+        return None
+
+# Enhanced debugging endpoint
+@app.route("/debug_generation", methods=["POST"])
+@jwt_required(optional=True)
+def debug_generation():
+    """Detailed debugging of flashcard generation"""
+    try:
+        data = request.get_json() or {}
+        notes = data.get("notes", "")
+        subject = data.get("subject", "general")
+        difficulty = data.get("difficulty", "medium")
+        
+        debug_info = {
+            "input": {
+                "notes_length": len(notes),
+                "subject": subject,
+                "difficulty": difficulty,
+                "notes_preview": notes[:100]
+            },
+            "config": {
+                "token_configured": bool(HUGGINGFACE_API_TOKEN),
+                "token_preview": HUGGINGFACE_API_TOKEN[:10] + "..." if HUGGINGFACE_API_TOKEN else None
+            }
+        }
+        
+        # Test multiple generation attempts
+        attempts = []
+        for i in range(3):
+            try:
+                result = generate_improved_flashcard(notes, subject, difficulty)
+                attempts.append({
+                    "attempt": i + 1,
+                    "success": result is not None,
+                    "result": result
+                })
+            except Exception as e:
+                attempts.append({
+                    "attempt": i + 1,
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        debug_info["generation_attempts"] = attempts
+        
+        return jsonify(debug_info), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 # ---------------------------
 # Main execution
 # ---------------------------
